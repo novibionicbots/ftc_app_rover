@@ -71,7 +71,6 @@ import java.util.List;
 
 @Autonomous(name="Autonomous Landing using TensorFlow", group="Pushbot")
 //@Disabled
-
 public class RobotLanding extends LinearOpMode {
 
     /* Declare OpMode members. */
@@ -114,16 +113,6 @@ public class RobotLanding extends LinearOpMode {
     @Override
     public void runOpMode() {
 
-        /*
-         * Initialize the drive system variables.
-         * The init() method of the hardware class does all the work here
-         */
-        robot.init(hardwareMap);
-
-        // Send telemetry message to signify robot waiting;
-        telemetry.addData("Status", "Initialized robot");    //
-        telemetry.update();
-
         // The TFObjectDetector uses the camera frames from the VuforiaLocalizer, so we create that
         // first.
         initVuforia();
@@ -134,6 +123,17 @@ public class RobotLanding extends LinearOpMode {
             telemetry.addData("Sorry!", "This device is not compatible with TFOD");
         }
 
+        /*
+         * Initialize the drive system variables.
+         * The init() method of the hardware class does all the work here
+         */
+        robot.init(hardwareMap);
+
+        // Send telemetry message to signify robot waiting;
+        telemetry.addData("Status", "Initialized robot");    //
+        telemetry.update();
+
+
         // Send telemetry message to indicate successful Encoder reset
         telemetry.addData("Step0",  "Starting at %7d",
                 robot.rack_pinion.getCurrentPosition());
@@ -142,7 +142,7 @@ public class RobotLanding extends LinearOpMode {
         // Wait for the game to start (driver presses PLAY)
         waitForStart();
 
-        encoderDown(6.5);
+//        encoderDown(6.5);
 
         runtime.reset();
 
@@ -160,7 +160,11 @@ public class RobotLanding extends LinearOpMode {
         robot.setLeftRight(0,0,0,0);
 
         //Start scanning
-        useTensor();
+        scanAndKnock();
+
+        if (tfod != null) {
+            tfod.shutdown();
+        }
 
         robot.setLeftRight(0,0,0,0);
         //        Wait(2);
@@ -234,6 +238,8 @@ public class RobotLanding extends LinearOpMode {
         parameters.vuforiaLicenseKey = VUFORIA_KEY;
         parameters.cameraName = hardwareMap.get(WebcamName.class, "webcam");
 
+        Wait(2000);
+
         //  Instantiate the Vuforia engine
         vuforia = ClassFactory.getInstance().createVuforia(parameters);
 
@@ -251,11 +257,9 @@ public class RobotLanding extends LinearOpMode {
         tfod.loadModelFromAsset(TFOD_MODEL_ASSET, LABEL_GOLD_MINERAL, LABEL_SILVER_MINERAL);
     }
 
-    private void useTensor(){
+    private void scanAndKnock(){
             // The TFObjectDetector uses the camera frames from the VuforiaLocalizer, so we create that
             // first.
-            initVuforia();
-
             if (ClassFactory.getInstance().canCreateTFObjectDetector()) {
                 initTfod();
             } else {
@@ -275,7 +279,7 @@ public class RobotLanding extends LinearOpMode {
 
                 runtime.reset();
 
-                while (opModeIsActive() && !detectedGoldMineral) {
+                while (opModeIsActive() && goldMineralX == -1) {
                     if (tfod != null) {
                         // getUpdatedRecognitions() will return null if no new information is available since
                         // the last time that call was made.
@@ -307,8 +311,19 @@ public class RobotLanding extends LinearOpMode {
                         telemetry.update();
                     }
 
-                    robot.setLeftRight(-0.05,0.05,-0.05,0.05);
+                    if(goldMineralX == -1)
+                        robot.setLeftRight(-0.01,0.01,-0.01,0.01);
                 }
+
+                robot.setLeftRight(0,0,0,0);
+
+                telemetry.addData("goldMineralX", goldMineralX);
+                telemetry.addData("silverMineral1X", silverMineral1X);
+                telemetry.addData("silverMineral2X", silverMineral2X);
+                telemetry.update();
+
+//                Wait(2000);
+
 
                 if (goldMineralX != -1 && silverMineral1X != -1 && silverMineral2X != -1) {
                     if (goldMineralX < silverMineral1X && goldMineralX < silverMineral2X) {
@@ -331,17 +346,17 @@ public class RobotLanding extends LinearOpMode {
                 telemetry.update();
 
                 runtime.reset();
+
                 while(opModeIsActive() && runtime.seconds() < 5) {
                     robot.setLeftRight(-0.2,-0.2,-0.2,-0.2);
                     telemetry.addData("Moving to knock off", "");
                     telemetry.update();
-                    if(tfod.getUpdatedRecognitions().isEmpty())break;
+                    if(tfod.getRecognitions().isEmpty()){
+                        break;
+                    }
                 }
 
             }
 
-            if (tfod != null) {
-                tfod.shutdown();
-            }
         }
 }
